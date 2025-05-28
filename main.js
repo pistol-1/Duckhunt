@@ -113,41 +113,50 @@ function castRay() {
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
     const intersects = raycaster.intersectObjects(activeDucks.map(d => d.getObject()), true);
-    if (intersects.length > 0) {
-        const hit = intersects[0].object;
-        const index = activeDucks.findIndex(d =>
-            d.getObject() === hit || d.getObject().children.includes(hit)
-        );
-        if (index !== -1) {
-            activeDucks[index].dispose();
-            activeDucks.splice(index, 1);
-        }
+
+if (intersects.length > 0) {
+    const hit = intersects[0].object;
+    const index = activeDucks.findIndex(d =>
+        d.getObject() === hit || d.getObject().children.includes(hit)
+    );
+    if (index !== -1) {
+        activeDucks[index].dispose();
+        activeDucks.splice(index, 1);
     }
+}
+
 }
 
 // Duck class
 class MovingDuck {
     constructor(scene) {
         this.scene = scene;
-        this.duck = duckModel.clone();
-        this.speed = 0.1;
 
+        // Create a container for the duck
+        this.group = new THREE.Object3D();
+
+        // Clone the duck model and add it to the container
+        this.duck = duckModel.clone();
+        this.group.add(this.duck);
+
+        // Decide direction and place it accordingly
         const startX = Math.random() < 0.5 ? -40 : 40;
         this.direction = startX > 0 ? -1 : 1;
 
-        this.duck.position.set(startX, 5, -30);
-        this.duck.rotation.y = this.direction === 1 ? Math.PI / 2 : -Math.PI / 2;
-        this.duck.scale.set(0.5, 0.5, 0.5);
+        this.group.position.set(startX, 5, -30);
+        this.group.rotation.y = this.direction === 1 ? Math.PI / 2 : -Math.PI / 2;
+        this.group.scale.set(0.5, 0.5, 0.5);
 
-        this.scene.add(this.duck);
+        // Add to scene
+        this.scene.add(this.group);
     }
 
     update() {
-        if (!this.duck) return false;
+        if (!this.group) return false;
 
-        this.duck.position.x += this.speed * this.direction;
+        this.group.position.x += this.direction * 0.1;
 
-        if (Math.abs(this.duck.position.x) > 50) {
+        if (Math.abs(this.group.position.x) > 50) {
             this.dispose();
             return false;
         }
@@ -156,22 +165,23 @@ class MovingDuck {
     }
 
     dispose() {
-        if (this.duck) {
-            this.scene.remove(this.duck);
-            this.duck.traverse(child => {
+        if (this.group) {
+            this.scene.remove(this.group);
+            this.group.traverse(child => {
                 if (child.isMesh) {
                     child.geometry.dispose();
                     child.material.dispose();
                 }
             });
-            this.duck = null;
+            this.group = null;
         }
     }
 
     getObject() {
-        return this.duck;
+        return this.group;
     }
 }
+
 
 // Animation loop
 function animate(time) {
