@@ -146,7 +146,7 @@ class MovingCube {
 
     init() {
         const startX = Math.random() < 0.5 ? -40 : 40;
-        const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const geometry = new THREE.BoxGeometry(1.5, 1.5, 0.1);
         const material = new THREE.MeshStandardMaterial({ color: 0xffffff,
                     map: duckColor,
             metalness: 0.2,
