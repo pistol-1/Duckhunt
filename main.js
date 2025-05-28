@@ -26,10 +26,6 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
-// Load texture
-const textureLoader = new THREE.TextureLoader();
-const duckTexture = textureLoader.load('source/duck.png');
-
 // Add crosshair and direction guide
 createCrosshair();
 
@@ -73,6 +69,7 @@ loader.load('source/duck.glb', gltf => { duckModel = gltf.scene; });
 
 // Crosshair and guide
 function createCrosshair() {
+    // Ring crosshair
     const ringGeometry = new THREE.RingGeometry(0.01, 0.02, 32);
     const ringMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
@@ -83,6 +80,7 @@ function createCrosshair() {
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.position.z = -2;
 
+    // Direction line
     const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
     const points = [
         new THREE.Vector3(0, 0, -2),
@@ -134,7 +132,7 @@ function castRay() {
     }
 }
 
-// Moving cube class with duck texture
+// Moving cube class
 class MovingCube {
     constructor(scene) {
         this.scene = scene;
@@ -147,10 +145,9 @@ class MovingCube {
         const startX = Math.random() < 0.5 ? -40 : 40;
         const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
         const material = new THREE.MeshStandardMaterial({ 
-            map: duckTexture,
+            color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
             metalness: 0.2,
-            roughness: 0.7,
-            side: THREE.DoubleSide
+            roughness: 0.7
         });
         this.cube = new THREE.Mesh(geometry, material);
         this.cube.position.set(startX, 5, -30);
