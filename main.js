@@ -10,7 +10,6 @@ const cubeSpawnInterval = 5000; // milliseconds
 let duckModel = null;
 
 // Raycaster setup
-const manager = new THREE.LoadingManager();
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let controller = null;
@@ -44,8 +43,6 @@ const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
 backLight.position.set(0, 5, -10);
 scene.add(backLight);
 
-
-const duckColor = new THREE.TextureLoader().load('source/duck.png')
 // Skybox
 const cubePath = 'cubemap/';
 const cubeFormat = '.png';
@@ -146,9 +143,9 @@ class MovingCube {
 
     init() {
         const startX = Math.random() < 0.5 ? -40 : 40;
-        const geometry = new THREE.BoxGeometry(1.5, 1.5, 0.1);
-        const material = new THREE.MeshStandardMaterial({ color: 0xffffff,
-                    map: duckColor,
+        const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
             metalness: 0.2,
             roughness: 0.7
         });
@@ -211,3 +208,4 @@ function animate(time) {
 
 // Initialize XR controller
 setupXRController();
+
