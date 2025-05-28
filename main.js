@@ -154,7 +154,7 @@ class MovingDuckPlane {
         });
 
         this.plane = new THREE.Mesh(geometry, material);
-        this.plane.rotation.x = -Math.PI / 2;
+        this.plane.rotation.x = 0;
         this.plane.position.set(startX, 5, -30);
         this.scene.add(this.plane);
         this.direction = startX > 0 ? -1 : 1;
