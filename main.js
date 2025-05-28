@@ -4,10 +4,10 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 
 // Scene setup
 const scene = new THREE.Scene();
-const activeCubes = [];
-let lastCubeTime = 0;
-const cubeSpawnInterval = 5000; // milliseconds
-let duckModel = null;
+const activePlanes = [];
+let lastSpawnTime = 0;
+const spawnInterval = 5000; // milliseconds
+let duckTexture = null;
 
 // Raycaster setup
 const raycaster = new THREE.Raycaster();
@@ -26,7 +26,7 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
-// Add crosshair and direction guide
+// Crosshair and direction guide
 createCrosshair();
 
 // Lighting
@@ -65,11 +65,13 @@ loader.load('source/arma.glb', gltf => {
     camera.add(weapon);
     scene.add(camera);
 });
-loader.load('source/duck.glb', gltf => { duckModel = gltf.scene; });
 
-// Crosshair and guide
+// Load duck texture
+const textureLoader = new THREE.TextureLoader();
+duckTexture = textureLoader.load('source/duck.png');
+
+// Create crosshair and guide
 function createCrosshair() {
-    // Ring crosshair
     const ringGeometry = new THREE.RingGeometry(0.01, 0.02, 32);
     const ringMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
@@ -80,7 +82,6 @@ function createCrosshair() {
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.position.z = -2;
 
-    // Direction line
     const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
     const points = [
         new THREE.Vector3(0, 0, -2),
@@ -94,7 +95,7 @@ function createCrosshair() {
     scene.add(camera);
 }
 
-// XR Controller Setup
+// Setup VR controller
 function setupXRController() {
     controller = renderer.xr.getController(0);
     controller.addEventListener('selectstart', onSelectStart);
@@ -117,49 +118,53 @@ function onSelectStart() {
 function castRay() {
     const tempMatrix = new THREE.Matrix4();
     tempMatrix.identity().extractRotation(controller.matrixWorld);
-    
+
     raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-    
-    const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
+
+    const intersects = raycaster.intersectObjects(activePlanes.map(obj => obj.plane));
     if (intersects.length > 0) {
-        const hitCube = intersects[0].object;
-        const cubeIndex = activeCubes.findIndex(cube => cube.cube === hitCube);
-        if (cubeIndex !== -1) {
-            activeCubes[cubeIndex].dispose();
-            activeCubes.splice(cubeIndex, 1);
+        const hit = intersects[0].object;
+        const index = activePlanes.findIndex(obj => obj.plane === hit);
+        if (index !== -1) {
+            activePlanes[index].dispose();
+            activePlanes.splice(index, 1);
         }
     }
 }
 
-// Moving cube class
-class MovingCube {
-    constructor(scene) {
+// Moving duck plane class
+class MovingDuckPlane {
+    constructor(scene, texture) {
         this.scene = scene;
-        this.cube = null;
+        this.plane = null;
         this.speed = 0.1;
+        this.texture = texture;
         this.init();
     }
 
     init() {
         const startX = Math.random() < 0.5 ? -40 : 40;
-        const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-        const material = new THREE.MeshStandardMaterial({ 
-            color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
-            metalness: 0.2,
-            roughness: 0.7
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const material = new THREE.MeshBasicMaterial({
+            map: this.texture,
+            side: THREE.DoubleSide,
+            transparent: true
         });
-        this.cube = new THREE.Mesh(geometry, material);
-        this.cube.position.set(startX, 5, -30);
-        this.scene.add(this.cube);
+
+        this.plane = new THREE.Mesh(geometry, material);
+        this.plane.rotation.x = -Math.PI / 2;
+        this.plane.position.set(startX, 5, -30);
+        this.scene.add(this.plane);
         this.direction = startX > 0 ? -1 : 1;
     }
 
     update() {
-        if (!this.cube) return false;
-        this.cube.position.x += this.speed * this.direction;
+        if (!this.plane) return false;
+        this.plane.position.x += this.speed * this.direction;
 
-        if (Math.abs(this.cube.position.x) > 50) {
+        if (Math.abs(this.plane.position.x) > 50) {
             this.dispose();
             return false;
         }
@@ -168,43 +173,46 @@ class MovingCube {
     }
 
     dispose() {
-        if (this.cube) {
-            this.scene.remove(this.cube);
-            this.cube.geometry.dispose();
-            this.cube.material.dispose();
-            this.cube = null;
+        if (this.plane) {
+            this.scene.remove(this.plane);
+            this.plane.geometry.dispose();
+            this.plane.material.dispose();
+            this.plane = null;
         }
     }
 }
 
 // Animation loop
 function animate(time) {
-    if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
-        activeCubes.push(new MovingCube(scene));
-        lastCubeTime = time;
+    if (!lastSpawnTime || time - lastSpawnTime > spawnInterval) {
+        activePlanes.push(new MovingDuckPlane(scene, duckTexture));
+        lastSpawnTime = time;
     }
 
-    for (let i = activeCubes.length - 1; i >= 0; i--) {
-        if (!activeCubes[i].update()) {
-            activeCubes.splice(i, 1);
+    for (let i = activePlanes.length - 1; i >= 0; i--) {
+        if (!activePlanes[i].update()) {
+            activePlanes.splice(i, 1);
         }
     }
 
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
+    const intersects = raycaster.intersectObjects(activePlanes.map(obj => obj.plane));
 
     if (intersects.length > 0) {
-        const hitCube = intersects[0].object;
-        const cubeIndex = activeCubes.findIndex(cube => cube.cube === hitCube);
-
-        if (cubeIndex !== -1) {
-            activeCubes[cubeIndex].dispose();
-            activeCubes.splice(cubeIndex, 1);
+        const hit = intersects[0].object;
+        const index = activePlanes.findIndex(obj => obj.plane === hit);
+        if (index !== -1) {
+            activePlanes[index].dispose();
+            activePlanes.splice(index, 1);
         }
     }
 
     renderer.render(scene, camera);
 }
+
+// Initialize controller after everything else
+setupXRController();
+
 
 // Initialize XR controller
 setupXRController();
