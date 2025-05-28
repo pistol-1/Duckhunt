@@ -158,25 +158,27 @@ function animate(time) {
         activeCubes.push(new MovingCube(scene));
         lastCubeTime = time;
     }
-    
+
     // Update cubes
     for (let i = activeCubes.length - 1; i >= 0; i--) {
         if (!activeCubes[i].update()) {
             activeCubes.splice(i, 1);
         }
     }
-    
+
+    // Perform gaze-based raycasting from camera
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera); // center of screen in NDC
+    const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
+
+    if (intersects.length > 0) {
+        const hitCube = intersects[0].object;
+        const cubeIndex = activeCubes.findIndex(cube => cube.cube === hitCube);
+
+        if (cubeIndex !== -1) {
+            activeCubes[cubeIndex].dispose();
+            activeCubes.splice(cubeIndex, 1);
+        }
+    }
+
     renderer.render(scene, camera);
 }
-
-// Initialize XR controller when session starts
-renderer.xr.addEventListener('sessionstart', () => {
-  setupXRController();
-});
-
-// Handle window resize
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
