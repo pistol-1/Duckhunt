@@ -8,12 +8,13 @@ const scene = new THREE.Scene();
 const activeCubes = [];
 let lastCubeTime = 0;
 const cubeSpawnInterval = 5000; // milliseconds
-
+let duckModel = null;
+let weaponModel = null;
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.001, 100);
 camera.position.set(0, 0, 0); // Always at origin
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setAnimationLoop(animate);
 document.body.appendChild(renderer.domElement);
@@ -23,7 +24,7 @@ renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
 // Lighting
-scene.add(new THREE.AmbientLight(0x040404));
+scene.add(new THREE.AmbientLight(0x404040));
 
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
 keyLight.position.set(5, 10, 7);
@@ -51,13 +52,22 @@ scene.background = skybox;
 // Load models
 const loader = new GLTFLoader();
 
-
 loader.load('source/arbol.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arbustos.glb', gltf => scene.add(gltf.scene));
 loader.load('source/piso.glb', gltf => scene.add(gltf.scene));
 loader.load('source/cerca.glb', gltf => scene.add(gltf.scene));
-loader.load('source/arma.glb', gltf => scene.add(gltf.scene));
-loader.load('source/duck.glb', gltf => {duckModel = gltf.scene;});
+loader.load('source/arma.glb', gltf => {
+    weaponModel = gltf.scene;
+    // Position the weapon in front of the camera (right hand position)
+    weaponModel.position.set(0.3, -0.5, -1);
+    // Rotate to make it face forward properly (adjust as needed)
+    weaponModel.rotation.set(0, 0, 0);
+    // Scale if necessary
+    weaponModel.scale.set(1, 1, 1);
+    // Parent to camera so it follows head movement
+    camera.add(weaponModel);
+});
+loader.load('source/duck.glb', gltf => { duckModel = gltf.scene; });
 
 class MovingCube {
     constructor(scene) {
@@ -115,7 +125,6 @@ class MovingCube {
     }
 }
 
-
 function animate(time) {
     // Spawn new cubes every 5 seconds
     if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
@@ -132,3 +141,10 @@ function animate(time) {
     
     renderer.render(scene, camera);
 }
+
+// Handle window resize
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
