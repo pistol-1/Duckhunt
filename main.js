@@ -85,6 +85,7 @@ loader.load('source/duck.glb', gltf => {
     duckModel = gltf.scene;
 });
 
+
 // Controller
 function setupXRController() {
     controller = renderer.xr.getController(0);
@@ -132,17 +133,18 @@ class MovingDuck {
     constructor(scene) {
         this.scene = scene;
 
-        // Create a container for the duck
+        // Create a container
         this.group = new THREE.Object3D();
 
-        // Clone the duck model and add it to the container
+        // Clone duck and add to container
         this.duck = duckModel.clone();
         this.group.add(this.duck);
 
-        // Decide direction and place it accordingly
+        // Decide spawn direction
         const startX = Math.random() < 0.5 ? -40 : 40;
         this.direction = startX > 0 ? -1 : 1;
 
+        // Position and face direction
         this.group.position.set(startX, 5, -30);
         this.group.rotation.y = this.direction === 1 ? Math.PI / 2 : -Math.PI / 2;
         this.group.scale.set(0.5, 0.5, 0.5);
@@ -183,23 +185,29 @@ class MovingDuck {
 }
 
 
-// Animation loop
+const activeDucks = [];
+
 function animate(time) {
-    if (!lastDuckTime || time - lastDuckTime > duckSpawnInterval) {
+    // Spawn new ducks
+    if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
         if (duckModel) {
             activeDucks.push(new MovingDuck(scene));
-            lastDuckTime = time;
+            lastCubeTime = time;
         }
     }
 
+    // Update ducks
     for (let i = activeDucks.length - 1; i >= 0; i--) {
         if (!activeDucks[i].update()) {
             activeDucks.splice(i, 1);
         }
     }
 
+    // Gaze-based removal
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersects = raycaster.intersectObjects(activeDucks.map(d => d.getObject()), true);
+    const intersects = raycaster.intersectObjects(
+        activeDucks.map(d => d.getObject()), true
+    );
 
     if (intersects.length > 0) {
         const hit = intersects[0].object;
@@ -214,6 +222,7 @@ function animate(time) {
 
     renderer.render(scene, camera);
 }
+
 
 // Start VR controller
 renderer.xr.addEventListener('sessionstart', () => {
