@@ -78,7 +78,15 @@ loader.load('source/arbol.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arbustos.glb', gltf => scene.add(gltf.scene));
 loader.load('source/piso.glb', gltf => scene.add(gltf.scene));
 loader.load('source/cerca.glb', gltf => scene.add(gltf.scene));
-loader.load('source/arma.glb', gltf => scene.add(gltf.scene));
+loader.load('source/arma.glb', gltf => {
+    const weapon = gltf.scene;
+
+
+
+    // Attach to camera so it follows head movement
+    camera.add(weapon);
+    scene.add(camera); // make sure camera is in the scene
+});
 loader.load('source/duck.glb', gltf => { duckModel = gltf.scene; });
 
 // Set up controller for VR
