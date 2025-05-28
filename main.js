@@ -4,16 +4,20 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 
 // Scene setup
 const scene = new THREE.Scene();
-
 const activeCubes = [];
 let lastCubeTime = 0;
 const cubeSpawnInterval = 5000; // milliseconds
+let duckModel = null;
 
+// Raycaster setup
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let controller = null;
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.001, 100);
-camera.position.set(0, 0, 0); // Always at origin
+camera.position.set(0, 0, 0);
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setAnimationLoop(animate);
 document.body.appendChild(renderer.domElement);
@@ -22,7 +26,7 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
-// Lighting
+// Lighting (same as before)
 scene.add(new THREE.AmbientLight(0x040404));
 
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -37,7 +41,7 @@ const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
 backLight.position.set(0, 5, -10);
 scene.add(backLight);
 
-// Skybox
+// Skybox (same as before)
 const cubePath = 'cubemap/';
 const cubeFormat = '.png';
 const cubeUrls = [
@@ -48,30 +52,71 @@ const cubeUrls = [
 const skybox = new THREE.CubeTextureLoader().load(cubeUrls);
 scene.background = skybox;
 
-// Load models
+// Load models (same as before)
 const loader = new GLTFLoader();
-
-
 loader.load('source/arbol.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arbustos.glb', gltf => scene.add(gltf.scene));
 loader.load('source/piso.glb', gltf => scene.add(gltf.scene));
 loader.load('source/cerca.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arma.glb', gltf => scene.add(gltf.scene));
-loader.load('source/duck.glb', gltf => {duckModel = gltf.scene;});
+loader.load('source/duck.glb', gltf => { duckModel = gltf.scene; });
+
+// Set up controller for VR
+function setupXRController() {
+  controller = renderer.xr.getController(0);
+  controller.addEventListener('selectstart', onSelectStart);
+  scene.add(controller);
+  
+  // Add a visual representation of the controller ray
+  const controllerModel = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -1).multiplyScalar(5)
+    ]),
+    new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 4 })
+  );
+  controller.add(controllerModel);
+}
+
+function onSelectStart() {
+  // Cast a ray when the controller trigger is pressed
+  castRay();
+}
+
+function castRay() {
+  // Update the raycaster with controller position and direction
+  const tempMatrix = new THREE.Matrix4();
+  tempMatrix.identity().extractRotation(controller.matrixWorld);
+  
+  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+  
+  // Check for intersections with cubes
+  const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
+  
+  if (intersects.length > 0) {
+    // Find the cube in our activeCubes array and remove it
+    const hitCube = intersects[0].object;
+    const cubeIndex = activeCubes.findIndex(cube => cube.cube === hitCube);
+    
+    if (cubeIndex !== -1) {
+      activeCubes[cubeIndex].dispose();
+      activeCubes.splice(cubeIndex, 1);
+    }
+  }
+}
 
 class MovingCube {
     constructor(scene) {
         this.scene = scene;
         this.cube = null;
-        this.speed = 0.1; // Movement speed
+        this.speed = 0.1;
         this.init();
     }
 
     init() {
-        // Randomly choose left (-40) or right (40) starting position
         const startX = Math.random() < 0.5 ? -40 : 40;
         
-        // Create cube with slightly more interesting appearance
         const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
         const material = new THREE.MeshStandardMaterial({ 
             color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
@@ -79,30 +124,22 @@ class MovingCube {
             roughness: 0.7
         });
         this.cube = new THREE.Mesh(geometry, material);
-        
-        // Set initial position (Y=5, Z=-10)
         this.cube.position.set(startX, 5, -30);
-        
-        // Add to scene
         this.scene.add(this.cube);
-        
-        // Set movement direction (opposite of starting X)
         this.direction = startX > 0 ? -1 : 1;
     }
 
     update() {
-        if (!this.cube) return;
+        if (!this.cube) return false;
         
-        // Move cube in the opposite X direction
         this.cube.position.x += this.speed * this.direction;
         
-        // Remove cube if it's far off screen (50 units)
         if (Math.abs(this.cube.position.x) > 50) {
             this.dispose();
-            return false; // Indicates this cube should be removed from tracking
+            return false;
         }
         
-        return true; // Cube is still active
+        return true;
     }
 
     dispose() {
@@ -115,20 +152,31 @@ class MovingCube {
     }
 }
 
-
 function animate(time) {
-    // Spawn new cubes every 5 seconds
+    // Spawn new cubes
     if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
         activeCubes.push(new MovingCube(scene));
         lastCubeTime = time;
     }
     
-    // Update all cubes
+    // Update cubes
     for (let i = activeCubes.length - 1; i >= 0; i--) {
         if (!activeCubes[i].update()) {
-            activeCubes.splice(i, 1); // Remove disposed cubes
+            activeCubes.splice(i, 1);
         }
     }
     
     renderer.render(scene, camera);
 }
+
+// Initialize XR controller when session starts
+renderer.xr.addEventListener('sessionstart', () => {
+  setupXRController();
+});
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
