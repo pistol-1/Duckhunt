@@ -68,7 +68,7 @@ loader.load('source/arma.glb', gltf => {
     weaponModel.scale.set(0.1, 0.1, 0.1); // Start with small scale
     
     // Position the weapon in view (right hand position)
-    weaponModel.position.set(0.3, -0.4, -0.8);
+    weaponModel.position.set(0.3, -1, -2);
     
     // Rotate to make it face forward properly
     weaponModel.rotation.set(0, Math.PI, 0);
