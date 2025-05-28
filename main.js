@@ -26,29 +26,11 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
+// Add crosshair and direction guide
+createCrosshair();
 
-function createCrosshair() {
-    const geometry = new THREE.RingGeometry(0.01, 0.02, 32);
-    const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        opacity: 0.8,
-        transparent: true,
-        depthTest: false
-    });
-
-    const crosshair = new THREE.Mesh(geometry, material);
-    crosshair.position.z = -2; // place it 2 units in front of the camera
-    camera.add(crosshair);     // attach it to the camera
-    scene.add(camera);         // re-add camera in case it was not added explicitly
-}
-
-
-
-
-
-// Lighting (same as before)
+// Lighting
 scene.add(new THREE.AmbientLight(0x040404));
-
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
 keyLight.position.set(5, 10, 7);
 scene.add(keyLight);
@@ -61,7 +43,7 @@ const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
 backLight.position.set(0, 5, -10);
 scene.add(backLight);
 
-// Skybox (same as before)
+// Skybox
 const cubePath = 'cubemap/';
 const cubeFormat = '.png';
 const cubeUrls = [
@@ -72,7 +54,7 @@ const cubeUrls = [
 const skybox = new THREE.CubeTextureLoader().load(cubeUrls);
 scene.background = skybox;
 
-// Load models (same as before)
+// Load models
 const loader = new GLTFLoader();
 loader.load('source/arbol.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arbustos.glb', gltf => scene.add(gltf.scene));
@@ -80,60 +62,77 @@ loader.load('source/piso.glb', gltf => scene.add(gltf.scene));
 loader.load('source/cerca.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arma.glb', gltf => {
     const weapon = gltf.scene;
-
-
-
-    // Attach to camera so it follows head movement
     camera.add(weapon);
-    scene.add(camera); // make sure camera is in the scene
+    scene.add(camera);
 });
 loader.load('source/duck.glb', gltf => { duckModel = gltf.scene; });
 
-// Set up controller for VR
+// Crosshair and guide
+function createCrosshair() {
+    // Ring crosshair
+    const ringGeometry = new THREE.RingGeometry(0.01, 0.02, 32);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        opacity: 0.9,
+        transparent: true,
+        depthTest: false
+    });
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.position.z = -2;
+
+    // Direction line
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const points = [
+        new THREE.Vector3(0, 0, -2),
+        new THREE.Vector3(0, 0, -2.2)
+    ];
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    const guideLine = new THREE.Line(lineGeometry, lineMaterial);
+
+    camera.add(ring);
+    camera.add(guideLine);
+    scene.add(camera);
+}
+
+// XR Controller Setup
 function setupXRController() {
-  controller = renderer.xr.getController(0);
-  controller.addEventListener('selectstart', onSelectStart);
-  scene.add(controller);
-  
-  // Add a visual representation of the controller ray
-  const controllerModel = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -1).multiplyScalar(5)
-    ]),
-    new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 4 })
-  );
-  controller.add(controllerModel);
+    controller = renderer.xr.getController(0);
+    controller.addEventListener('selectstart', onSelectStart);
+    scene.add(controller);
+
+    const controllerModel = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -1).multiplyScalar(5)
+        ]),
+        new THREE.LineBasicMaterial({ color: 0x00ff00 })
+    );
+    controller.add(controllerModel);
 }
 
 function onSelectStart() {
-  // Cast a ray when the controller trigger is pressed
-  castRay();
+    castRay();
 }
 
 function castRay() {
-  // Update the raycaster with controller position and direction
-  const tempMatrix = new THREE.Matrix4();
-  tempMatrix.identity().extractRotation(controller.matrixWorld);
-  
-  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-  
-  // Check for intersections with cubes
-  const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
-  
-  if (intersects.length > 0) {
-    // Find the cube in our activeCubes array and remove it
-    const hitCube = intersects[0].object;
-    const cubeIndex = activeCubes.findIndex(cube => cube.cube === hitCube);
+    const tempMatrix = new THREE.Matrix4();
+    tempMatrix.identity().extractRotation(controller.matrixWorld);
     
-    if (cubeIndex !== -1) {
-      activeCubes[cubeIndex].dispose();
-      activeCubes.splice(cubeIndex, 1);
+    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+    
+    const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
+    if (intersects.length > 0) {
+        const hitCube = intersects[0].object;
+        const cubeIndex = activeCubes.findIndex(cube => cube.cube === hitCube);
+        if (cubeIndex !== -1) {
+            activeCubes[cubeIndex].dispose();
+            activeCubes.splice(cubeIndex, 1);
+        }
     }
-  }
 }
 
+// Moving cube class
 class MovingCube {
     constructor(scene) {
         this.scene = scene;
@@ -144,7 +143,6 @@ class MovingCube {
 
     init() {
         const startX = Math.random() < 0.5 ? -40 : 40;
-        
         const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
         const material = new THREE.MeshStandardMaterial({ 
             color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
@@ -159,14 +157,13 @@ class MovingCube {
 
     update() {
         if (!this.cube) return false;
-        
         this.cube.position.x += this.speed * this.direction;
-        
+
         if (Math.abs(this.cube.position.x) > 50) {
             this.dispose();
             return false;
         }
-        
+
         return true;
     }
 
@@ -180,22 +177,20 @@ class MovingCube {
     }
 }
 
+// Animation loop
 function animate(time) {
-    // Spawn new cubes
     if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
         activeCubes.push(new MovingCube(scene));
         lastCubeTime = time;
     }
 
-    // Update cubes
     for (let i = activeCubes.length - 1; i >= 0; i--) {
         if (!activeCubes[i].update()) {
             activeCubes.splice(i, 1);
         }
     }
 
-    // Perform gaze-based raycasting from camera
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera); // center of screen in NDC
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     const intersects = raycaster.intersectObjects(activeCubes.map(cube => cube.cube));
 
     if (intersects.length > 0) {
@@ -210,3 +205,6 @@ function animate(time) {
 
     renderer.render(scene, camera);
 }
+
+// Initialize XR controller
+setupXRController();
