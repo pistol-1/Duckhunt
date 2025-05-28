@@ -6,17 +6,15 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 const scene = new THREE.Scene();
 const activeDucks = [];
 let lastDuckTime = 0;
-const duckSpawnInterval = 5000; // milliseconds
+const duckSpawnInterval = 5000;
 let duckModel = null;
 
 const raycaster = new THREE.Raycaster();
 let controller = null;
 
-// Camera
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.001, 100);
 camera.position.set(0, 0, 0);
 
-// Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setAnimationLoop(animate);
@@ -26,25 +24,8 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
-// Crosshair
-function createCrosshair() {
-    const geometry = new THREE.RingGeometry(0.01, 0.02, 32);
-    const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        opacity: 0.8,
-        transparent: true,
-        depthTest: false
-    });
-    const crosshair = new THREE.Mesh(geometry, material);
-    crosshair.position.z = -2;
-    camera.add(crosshair);
-    scene.add(camera);
-}
-createCrosshair();
-
-// Lights
+// Lighting
 scene.add(new THREE.AmbientLight(0x040404));
-
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
 keyLight.position.set(5, 10, 7);
 scene.add(keyLight);
@@ -68,25 +49,44 @@ const cubeUrls = [
 const skybox = new THREE.CubeTextureLoader().load(cubeUrls);
 scene.background = skybox;
 
-// Load models
+// Crosshair
+function createCrosshair() {
+    const geometry = new THREE.RingGeometry(0.01, 0.02, 32);
+    const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        opacity: 0.8,
+        transparent: true,
+        depthTest: false
+    });
+    const crosshair = new THREE.Mesh(geometry, material);
+    crosshair.position.z = -2;
+    camera.add(crosshair);
+    scene.add(camera);
+}
+createCrosshair();
+
+// Load environment models
 const loader = new GLTFLoader();
 loader.load('source/arbol.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arbustos.glb', gltf => scene.add(gltf.scene));
 loader.load('source/piso.glb', gltf => scene.add(gltf.scene));
 loader.load('source/cerca.glb', gltf => scene.add(gltf.scene));
 
+// Load weapon and attach to camera
 loader.load('source/arma.glb', gltf => {
     const weapon = gltf.scene;
+    weapon.position.set(0.2, -0.2, -0.5); // Adjust for better placement
+    weapon.scale.set(0.5, 0.5, 0.5);
     camera.add(weapon);
     scene.add(camera);
 });
 
+// Load duck (not added to scene immediately)
 loader.load('source/duck.glb', gltf => {
     duckModel = gltf.scene;
 });
 
-
-// Controller
+// XR controller setup
 function setupXRController() {
     controller = renderer.xr.getController(0);
     controller.addEventListener('selectstart', onSelectStart);
@@ -97,7 +97,7 @@ function setupXRController() {
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, 0, -1).multiplyScalar(5)
         ]),
-        new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 4 })
+        new THREE.LineBasicMaterial({ color: 0x00ff00 })
     );
     controller.add(controllerModel);
 }
@@ -109,47 +109,35 @@ function onSelectStart() {
 function castRay() {
     const tempMatrix = new THREE.Matrix4();
     tempMatrix.identity().extractRotation(controller.matrixWorld);
-
     raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
     const intersects = raycaster.intersectObjects(activeDucks.map(d => d.getObject()), true);
-
-if (intersects.length > 0) {
-    const hit = intersects[0].object;
-    const index = activeDucks.findIndex(d =>
-        d.getObject() === hit || d.getObject().children.includes(hit)
-    );
-    if (index !== -1) {
-        activeDucks[index].dispose();
-        activeDucks.splice(index, 1);
+    if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        const index = activeDucks.findIndex(d =>
+            d.getObject() === hit || d.getObject().children.includes(hit)
+        );
+        if (index !== -1) {
+            activeDucks[index].dispose();
+            activeDucks.splice(index, 1);
+        }
     }
 }
 
-}
-
-// Duck class
 class MovingDuck {
     constructor(scene) {
         this.scene = scene;
-
-        // Create a container
         this.group = new THREE.Object3D();
-
-        // Clone duck and add to container
         this.duck = duckModel.clone();
         this.group.add(this.duck);
 
-        // Decide spawn direction
         const startX = Math.random() < 0.5 ? -40 : 40;
         this.direction = startX > 0 ? -1 : 1;
-
-        // Position and face direction
         this.group.position.set(startX, 5, -30);
         this.group.rotation.y = this.direction === 1 ? Math.PI / 2 : -Math.PI / 2;
         this.group.scale.set(0.5, 0.5, 0.5);
 
-        // Add to scene
         this.scene.add(this.group);
     }
 
@@ -157,7 +145,6 @@ class MovingDuck {
         if (!this.group) return false;
 
         this.group.position.x += this.direction * 0.1;
-
         if (Math.abs(this.group.position.x) > 50) {
             this.dispose();
             return false;
@@ -184,16 +171,12 @@ class MovingDuck {
     }
 }
 
-
-const activeDucks = [];
-
+// Animate loop
 function animate(time) {
-    // Spawn new ducks
-    if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
-        if (duckModel) {
-            activeDucks.push(new MovingDuck(scene));
-            lastCubeTime = time;
-        }
+    // Spawn duck
+    if (duckModel && (!lastDuckTime || time - lastDuckTime > duckSpawnInterval)) {
+        activeDucks.push(new MovingDuck(scene));
+        lastDuckTime = time;
     }
 
     // Update ducks
@@ -203,7 +186,7 @@ function animate(time) {
         }
     }
 
-    // Gaze-based removal
+    // Gaze interaction
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     const intersects = raycaster.intersectObjects(
         activeDucks.map(d => d.getObject()), true
@@ -223,13 +206,11 @@ function animate(time) {
     renderer.render(scene, camera);
 }
 
-
-// Start VR controller
 renderer.xr.addEventListener('sessionstart', () => {
     setupXRController();
 });
 
-// Handle resize
+// Resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
