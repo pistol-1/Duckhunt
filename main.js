@@ -26,6 +26,26 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
+
+function createCrosshair() {
+    const geometry = new THREE.RingGeometry(0.01, 0.02, 32);
+    const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        opacity: 0.8,
+        transparent: true,
+        depthTest: false
+    });
+
+    const crosshair = new THREE.Mesh(geometry, material);
+    crosshair.position.z = -2; // place it 2 units in front of the camera
+    camera.add(crosshair);     // attach it to the camera
+    scene.add(camera);         // re-add camera in case it was not added explicitly
+}
+
+
+
+
+
 // Lighting (same as before)
 scene.add(new THREE.AmbientLight(0x040404));
 
