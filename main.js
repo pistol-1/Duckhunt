@@ -8,32 +8,32 @@ const scene = new THREE.Scene();
 const activeCubes = [];
 let lastCubeTime = 0;
 const cubeSpawnInterval = 5000; // milliseconds
-let duckModel = null;
-let weaponModel = null;
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100); // Increased near plane
-camera.position.set(0, 1.6, 0); // Approximate head height
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.001, 100);
+camera.position.set(0, 0, 0); // Always at origin
+
+const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setAnimationLoop(animate);
 document.body.appendChild(renderer.domElement);
 
 renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 document.body.appendChild(VRButton.createButton(renderer));
 
-// Lighting - increased intensity
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+// Lighting
+scene.add(new THREE.AmbientLight(0x040404));
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
 keyLight.position.set(5, 10, 7);
 scene.add(keyLight);
 
-const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
 fillLight.position.set(-5, 5, 5);
 scene.add(fillLight);
 
-const backLight = new THREE.DirectionalLight(0xffffff, 1.0);
+const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
 backLight.position.set(0, 5, -10);
 scene.add(backLight);
 
@@ -51,59 +51,27 @@ scene.background = skybox;
 // Load models
 const loader = new GLTFLoader();
 
-// First load environment models
+
 loader.load('source/arbol.glb', gltf => scene.add(gltf.scene));
 loader.load('source/arbustos.glb', gltf => scene.add(gltf.scene));
 loader.load('source/piso.glb', gltf => scene.add(gltf.scene));
 loader.load('source/cerca.glb', gltf => scene.add(gltf.scene));
-
-// Then load weapon model
-loader.load('source/arma.glb', gltf => {
-    weaponModel = gltf.scene;
-    
-    // Debug: Log model information
-    console.log('Weapon model loaded:', weaponModel);
-    
-    // Check if model has proper scale
-    weaponModel.scale.set(0.1, 0.1, 0.1); // Start with small scale
-    
-    // Position the weapon in view (right hand position)
-    weaponModel.position.set(0.3, -1, -2);
-    
-    // Rotate to make it face forward properly
-    weaponModel.rotation.set(0, Math.PI, 0);
-    
-    // Add bounding box helper for debugging
-    const bbox = new THREE.Box3().setFromObject(weaponModel);
-    const bboxHelper = new THREE.Box3Helper(bbox, 0xffff00);
-    weaponModel.add(bboxHelper);
-    
-    // Parent to camera
-    camera.add(weaponModel);
-    
-    // Debug: Check camera children
-    console.log('Camera children:', camera.children);
-}, 
-undefined, 
-error => {
-    console.error('Error loading weapon model:', error);
-});
-
-loader.load('source/duck.glb', gltf => { 
-    duckModel = gltf.scene;
-    scene.add(duckModel);
-});
+loader.load('source/arma.glb', gltf => scene.add(gltf.scene));
+loader.load('source/duck.glb', gltf => {duckModel = gltf.scene;});
 
 class MovingCube {
     constructor(scene) {
         this.scene = scene;
         this.cube = null;
-        this.speed = 0.1;
+        this.speed = 0.1; // Movement speed
         this.init();
     }
 
     init() {
+        // Randomly choose left (-40) or right (40) starting position
         const startX = Math.random() < 0.5 ? -40 : 40;
+        
+        // Create cube with slightly more interesting appearance
         const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
         const material = new THREE.MeshStandardMaterial({ 
             color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
@@ -111,19 +79,30 @@ class MovingCube {
             roughness: 0.7
         });
         this.cube = new THREE.Mesh(geometry, material);
+        
+        // Set initial position (Y=5, Z=-10)
         this.cube.position.set(startX, 5, -30);
+        
+        // Add to scene
         this.scene.add(this.cube);
+        
+        // Set movement direction (opposite of starting X)
         this.direction = startX > 0 ? -1 : 1;
     }
 
     update() {
         if (!this.cube) return;
+        
+        // Move cube in the opposite X direction
         this.cube.position.x += this.speed * this.direction;
+        
+        // Remove cube if it's far off screen (50 units)
         if (Math.abs(this.cube.position.x) > 50) {
             this.dispose();
-            return false;
+            return false; // Indicates this cube should be removed from tracking
         }
-        return true;
+        
+        return true; // Cube is still active
     }
 
     dispose() {
@@ -136,28 +115,20 @@ class MovingCube {
     }
 }
 
+
 function animate(time) {
-    // Spawn new cubes
+    // Spawn new cubes every 5 seconds
     if (!lastCubeTime || time - lastCubeTime > cubeSpawnInterval) {
         activeCubes.push(new MovingCube(scene));
         lastCubeTime = time;
     }
     
-    // Update cubes
+    // Update all cubes
     for (let i = activeCubes.length - 1; i >= 0; i--) {
         if (!activeCubes[i].update()) {
-            activeCubes.splice(i, 1);
+            activeCubes.splice(i, 1); // Remove disposed cubes
         }
     }
     
     renderer.render(scene, camera);
 }
-
-renderer.setAnimationLoop(animate);
-
-// Handle window resize
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
